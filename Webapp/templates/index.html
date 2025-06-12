@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Timer Tracker</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes wiggle { 0%,100% { transform: rotate(-3deg);} 50% { transform: rotate(3deg);} }
+    .wiggle { animation: wiggle 0.3s infinite; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+
+  <!-- Hidden CSV Upload Input -->
+  <input type="file" id="csv-input" accept=".csv" class="hidden" />
+
+  <!-- Floating Add/Delete Menu -->
+  <div class="fixed bottom-4 right-4 z-10 flex flex-col items-end">
+    <!-- Menu Buttons (above main +) -->
+    <div id="dropdown" class="hidden flex flex-col items-center mb-2 space-y-2">
+      <!-- Upload CSV -->
+      <button id="upload-csv" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v8m0-8l-4 4m4-4l4 4M12 4v8" />
+        </svg>
+      </button>
+      <!-- Add Tracker -->
+      <button id="add-tracker" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+      <!-- View Stats -->
+      <button id="view-stats" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m4-6v6m-8-6v6" />
+        </svg>
+      </button>
+      <!-- Delete Mode -->
+      <button id="delete-mode-btn" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+        <svg id="delete-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <!-- Main '+' Button -->
+    <button id="add-btn" class="w-12 h-12 bg-blue-500 hover:bg-blue-600 rounded-full shadow-lg flex items-center justify-center text-white focus:outline-none">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Tracker Grid -->
+  <main class="flex-1 p-4 grid gap-4 auto-rows-min sm:grid-cols-2 lg:grid-cols-3">
+  </main>
+
+  <!-- Add Tracker Modal -->
+  <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg p-6 w-80">
+      <h2 class="text-lg font-medium mb-4">Add New Tracker</h2>
+      <input id="new-name" type="text" placeholder="Tracker Name" class="w-full p-2 border rounded mb-4" />
+      <div class="flex justify-end">
+        <button id="cancel-btn" class="mr-2 px-4 py-2">Cancel</button>
+        <button id="save-btn" class="bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const main = document.querySelector('main');
+    const modal = document.getElementById('modal');
+    const addBtn = document.getElementById('add-btn');
+    const dropdown = document.getElementById('dropdown');
+    const uploadBtn = document.getElementById('upload-csv');
+    const csvInput = document.getElementById('csv-input');
+    const addTrackerBtn = document.getElementById('add-tracker');
+    const viewStatsBtn = document.getElementById('view-stats');
+    const deleteModeBtn = document.getElementById('delete-mode-btn');
+    const deleteIcon = document.getElementById('delete-icon');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const saveBtn = document.getElementById('save-btn');
+    const newName = document.getElementById('new-name');
+    let deleteMode = false;
+    const intervals = {};
+
+    addBtn.addEventListener('click', e => { e.stopPropagation(); dropdown.classList.toggle('hidden'); });
+    document.addEventListener('click', () => dropdown.classList.add('hidden'));
+
+    uploadBtn.addEventListener('click', () => { dropdown.classList.add('hidden'); csvInput.click(); });
+    csvInput.addEventListener('change', async e => {
+      const file = e.target.files[0]; if (!file) return;
+      const form = new FormData(); form.append('file', file);
+      await fetch('/upload', { method: 'POST', body: form }); loadTimers();
+    });
+
+    addTrackerBtn.addEventListener('click', () => { dropdown.classList.add('hidden'); newName.value=''; modal.classList.remove('hidden'); newName.focus(); });
+    cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
+    saveBtn.addEventListener('click', async () => {
+      const name=newName.value.trim(); if(!name) return alert('Enter a name');
+      await fetch('/api/timers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+      modal.classList.add('hidden'); loadTimers();
+    });
+
+    viewStatsBtn.addEventListener('click', () => { dropdown.classList.add('hidden'); window.location.href='/stats'; });
+
+    deleteModeBtn.addEventListener('click', () => {
+      deleteMode = !deleteMode;
+      deleteIcon.innerHTML = deleteMode
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
+      loadTimers();
+    });
+
+    async function loadTimers() {
+      const res = await fetch('/api/timers');
+      const timers = await res.json();
+      main.innerHTML='';
+      timers.forEach(timer => {
+        const pill=document.createElement('div');
+        pill.className='relative bg-white rounded-full border border-gray-300 p-4 flex flex-col items-center shadow cursor-pointer'+(deleteMode?' wiggle':'');
+        pill.innerHTML=`<div class="text-gray-700 font-medium mb-2">${timer.name}</div><div class="text-2xl font-mono text-gray-900" id="time-${timer.id}">${formatElapsed(timer.elapsed)}</div>`;
+        pill.addEventListener('click', async e => {
+          e.stopPropagation();
+          if(deleteMode) {await fetch(`/api/timers/${timer.id}`,{method:'DELETE'}); deleteMode=false; loadTimers();}
+          else {clearInterval(intervals[timer.id]); await fetch(`/api/timers/${timer.id}/toggle`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:timer.running?'stop':'start'})}); loadTimers();}
+        });
+        main.appendChild(pill);
+        if(!deleteMode && timer.running) startClock(timer.id, timer.elapsed);
+      });
+    }
+    function formatElapsed(sec) {const h=String(Math.floor(sec/3600)).padStart(2,'0'),m=String(Math.floor((sec%3600)/60)).padStart(2,'0'),s=String(sec%60).padStart(2,'0');return`${h}:${m}:${s}`;}
+    function startClock(id,startSec){const display=document.getElementById(`time-${id}`);let elapsed=startSec;intervals[id]=setInterval(()=>{elapsed++;display.textContent=formatElapsed(elapsed);},1000);}
+    loadTimers();
+  </script>
+</body>
+</html>

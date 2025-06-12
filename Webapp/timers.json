@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ac1291e1-c0f2-4a29-b41a-3e899c8b2626",
+    "name": "Slapen",
+    "running": false,
+    "start_time": null
+  },
+  {
+    "id": "60214dd4-d13c-4671-9f07-5b9a2407d971",
+    "name": "Powerbi",
+    "running": false,
+    "start_time": null
+  },
+  {
+    "id": "bdec9065-24b7-473b-ba31-9c6f2cff23e6",
+    "name": "MeTime",
+    "running": false,
+    "start_time": null
+  }
+]

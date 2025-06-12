@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4 min-h-screen flex flex-col items-center">
+  <!-- Return Button -->
+  <div class="w-full max-w-lg mb-4">
+    <button onclick="window.location.href='/'" class="flex items-center text-gray-700 hover:text-gray-900">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      <span class="font-medium">Back</span>
+    </button>
+  </div>
+
+  <h1 class="text-2xl font-semibold mb-6">Time Distribution</h1>
+  <div id="chart-container" class="w-full max-w-lg bg-white p-6 rounded-lg shadow">
+    <canvas id="statsChart"></canvas>
+  </div>
+
+  <!-- Filter Buttons -->
+  <div class="flex justify-center space-x-4 mt-4">
+    <button id="filter-day" class="px-4 py-2 bg-blue-500 text-white rounded">Day</button>
+    <button id="filter-week" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Week</button>
+    <button id="filter-month" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Month</button>
+    <button id="filter-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">All</button>
+  </div>
+
+  <script>
+    let currentPeriod = 'day';
+    let statsChart;
+
+    async function loadStats(period) {
+      const res = await fetch('/api/stats?period=' + period);
+      const data = await res.json();
+
+      // Clear previous message if any
+      document.querySelectorAll('.no-data-msg').forEach(el => el.remove());
+
+      if (!data.length) {
+        if (statsChart) statsChart.destroy();
+        const msg = document.createElement('p');
+        msg.textContent = 'No tracking data for ' + period + '.';
+        msg.className = 'text-gray-600 mt-4 no-data-msg';
+        document.body.appendChild(msg);
+        return;
+      }
+
+      const labels = data.map(d => d.name);
+      const values = data.map(d => d.hours);
+      const ctx = document.getElementById('statsChart').getContext('2d');
+
+      if (statsChart) statsChart.destroy();
+      statsChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            title: { display: true, text: 'Hours per Tracker (' + period.charAt(0).toUpperCase() + period.slice(1) + ')' }
+          }
+        }
+      });
+    }
+
+    function setPeriod(period) {
+      currentPeriod = period;
+      ['day','week','month','all'].forEach(p => {
+        const btn = document.getElementById('filter-' + p);
+        if (p === period) {
+          btn.classList.add('bg-blue-500', 'text-white');
+          btn.classList.remove('bg-gray-200');
+        } else {
+          btn.classList.remove('bg-blue-500', 'text-white');
+          btn.classList.add('bg-gray-200');
+        }
+      });
+      loadStats(period);
+    }
+
+    document.getElementById('filter-day').addEventListener('click', () => setPeriod('day'));
+    document.getElementById('filter-week').addEventListener('click', () => setPeriod('week'));
+    document.getElementById('filter-month').addEventListener('click', () => setPeriod('month'));
+    document.getElementById('filter-all').addEventListener('click', () => setPeriod('all'));
+
+    // Initial load
+    setPeriod(currentPeriod);
+  </script>
+</body>
+</html>
