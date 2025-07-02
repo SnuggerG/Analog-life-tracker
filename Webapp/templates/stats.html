@@ -1,125 +1,62 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weekly Tracker Overview</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekly Timesheet – Hour‑Grid</title>
+  <script>tailwind={config:{darkMode:'class'}};</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    body{font-family:monospace}
+    .hour-cell{width:10px;height:20px;border:1px solid rgba(100,100,100,.25)}
+    .hour-filled{background:#3b82f6}
+    .hour-header{width:10px;font-size:9px;text-align:center;color:rgba(255,255,255,.6)}
+    .sticky-left{position:sticky;left:0;background:inherit;z-index:20}
+  </style>
 </head>
-<body class="min-h-screen flex flex-col items-center bg-gray-100 dark:bg-gray-900 font-mono text-gray-900 dark:text-gray-100 p-4">
-  <!-- Back Button -->
-  <div class="w-full max-w-4xl mb-4">
-    <button onclick="window.location.href='/'" class="flex items-center text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
-      <span class="font-medium">Home</span>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen p-4">
+  <!-- NAV -->
+  <div class="max-w-[2200px] mx-auto mb-6">
+    <button onclick="location='/'" class="flex items-center text-gray-700 dark:text-gray-200 hover:text-white mb-4">
+      <svg class="h-6 w-6 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>Home
     </button>
+
+    <div class="flex items-center space-x-4">
+      <button id="prev" class="px-3 py-1 bg-gray-300 dark:bg-gray-800 rounded hover:bg-gray-400">&larr; Prev</button>
+      <button id="now"  class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Current week</button>
+      <span id="label" class="text-lg font-bold flex-1 text-center"></span>
+      <button id="next" class="px-3 py-1 bg-gray-300 dark:bg-gray-800 rounded hover:bg-gray-400">Next &rarr;</button>
+    </div>
   </div>
 
-  <!-- Week Navigation -->
-  <div class="flex items-center mb-6 space-x-4">
-    <button id="prev-week" class="px-3 py-1 bg-gray-200 dark:bg-gray-800 rounded hover:bg-gray-300 dark:hover:bg-gray-700">&larr; Prev Week</button>
-    <button id="current-week" class="px-3 py-1 bg-blue-500 dark:bg-blue-600 text-white rounded hover:bg-blue-600 dark:hover:bg-blue-700">Current Week</button>
-    <h2 id="week-label" class="text-xl font-semibold"></h2>
-    <button id="next-week" class="px-3 py-1 bg-gray-200 dark:bg-gray-800 rounded hover:bg-gray-300 dark:hover:bg-gray-700">Next Week &rarr;</button>
+  <!-- NUMERIC TABLE -->
+  <div class="max-w-[2200px] mx-auto overflow-x-auto bg-gray-50 dark:bg-gray-800 rounded-lg shadow mb-6">
+    <table id="table" class="min-w-full text-sm divide-y divide-gray-300 dark:divide-gray-700"></table>
   </div>
 
-  <!-- Weekly Data Table -->
-  <div class="overflow-x-auto w-full max-w-4xl bg-white dark:bg-gray-800 rounded-lg shadow">
-    <table id="stats-table" class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-      <!-- Populated in JS -->
-    </table>
+  <!-- GRID -->
+  <div class="max-w-[2200px] mx-auto overflow-x-auto bg-gray-50 dark:bg-gray-800 rounded-lg shadow p-4 space-y-3">
+    <div id="days-row"  class="flex items-center space-x-[1px] mb-1"></div>
+    <div id="hours-row" class="flex items-center space-x-[1px] mb-2"></div>
+    <div id="grid-zone"  class="space-y-3"></div>
   </div>
 
-  <script>
-    let currentWeek, currentYear;
-
-    // Compute ISO week/year
-    function getISOWeekYear(date) {
-      const target = new Date(date.valueOf());
-      const dayNr = (date.getDay() + 6) % 7;
-      target.setDate(target.getDate() - dayNr + 3);
-      const firstThursday = target.valueOf();
-      target.setMonth(0, 1);
-      if (target.getDay() !== 4) {
-        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-      }
-      const weekNumber = 1 + Math.ceil((firstThursday - target) / 604800000);
-      return { week: weekNumber, year: target.getFullYear() };
-    }
-
-    // Format decimal hours to H:MM
-    function formatHours(decimalHours) {
-      const totalMinutes = Math.round(decimalHours * 60);
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
-      return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
-    }
-
-    // Render table header and body
-    function renderTable(labels, trackers) {
-      const tbl = document.getElementById('stats-table');
-      let html = '<thead class="bg-gray-50 dark:bg-gray-700"><tr>';
-      html += '<th class="px-4 py-2 text-left">Tracker (H:MM)</th>';
-      labels.forEach(day => {
-        const d = new Date(day);
-        const lbl = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
-        html += `<th class="px-4 py-2 text-center">${lbl}</th>`;
-      });
-      html += '</tr></thead><tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">';
-      trackers.forEach(t => {
-        html += '<tr>';
-        html += `<td class="px-4 py-2 font-medium">${t.name}</td>`;
-        t.hours.forEach(h => {
-          html += `<td class="px-4 py-2 text-center">${formatHours(h)}</td>`;
-        });
-        html += '</tr>';
-      });
-      html += '</tbody>';
-      tbl.innerHTML = html;
-    }
-
-    // Load data for week/year
-    async function loadWeek(week, year) {
-      const res = await fetch(`/api/stats?period=week&week=${week}&year=${year}`);
-      const data = await res.json();
-      document.getElementById('week-label').textContent = `Week ${week}, ${year}`;
-      if (!data.trackers || data.trackers.length === 0) {
-        document.getElementById('stats-table').innerHTML = '<tr><td class="p-4 text-center">No data for this week.</td></tr>';
-        return;
-      }
-      renderTable(data.labels, data.trackers);
-    }
-
-    // Prev/Next handlers
-    document.getElementById('prev-week').addEventListener('click', () => {
-      currentWeek--;
-      if (currentWeek < 1) { currentYear--; currentWeek = 52; }
-      loadWeek(currentWeek, currentYear);
-    });
-    document.getElementById('next-week').addEventListener('click', () => {
-      currentWeek++;
-      if (currentWeek > 52) { currentYear++; currentWeek = 1; }
-      loadWeek(currentWeek, currentYear);
-    });
-
-    // Current Week handler
-    document.getElementById('current-week').addEventListener('click', () => {
-      const now = new Date();
-      const iso = getISOWeekYear(now);
-      currentWeek = iso.week;
-      currentYear = iso.year;
-      loadWeek(currentWeek, currentYear);
-    });
-
-    // Initialize on load
-    window.addEventListener('DOMContentLoaded', () => {
-      const now = new Date();
-      ({ week: currentWeek, year: currentYear } = getISOWeekYear(now));
-      loadWeek(currentWeek, currentYear);
-    });
-  </script>
+<script>
+const CELL_W = 10;
+function isoWeek(d){d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y0=new Date(Date.UTC(d.getUTCFullYear(),0,1));return{w:Math.ceil((((d-y0)/864e5)+1)/7),y:d.getUTCFullYear()};}
+function pad(n){return String(n).padStart(2,'0');}
+function toHM(h){const m=Math.round(h*60);return pad(Math.floor(m/60))+':'+pad(m%60);}
+let {w:curW,y:curY}=isoWeek(new Date());
+const labelEl=document.getElementById('label');
+const tableEl=document.getElementById('table');
+const gridZone=document.getElementById('grid-zone');
+const hoursRow=document.getElementById('hours-row');
+const daysRow=document.getElementById('days-row');
+function buildHourHeader(){hoursRow.innerHTML='';const spacer=document.createElement('div');spacer.className='min-w-[200px]';hoursRow.appendChild(spacer);for(let d=0;d<7;d++){for(let h=0;h<24;h++){const c=document.createElement('div');c.className='hour-header';c.style.width=CELL_W+'px';c.textContent=(h%6===0)?pad(h):'';hoursRow.appendChild(c);}const gap=document.createElement('div');gap.style.width='8px';hoursRow.appendChild(gap);}const filler=document.createElement('div');filler.className='hour-header';filler.style.width='60px';hoursRow.appendChild(filler);} 
+function buildDayHeader(dates){daysRow.innerHTML='';const spacer=document.createElement('div');spacer.className='min-w-[200px]';daysRow.appendChild(spacer);dates.forEach((iso,idx)=>{const d=new Date(iso);const wrap=document.createElement('div');wrap.className='flex';wrap.style.width=(24*CELL_W)+'px';wrap.style.justifyContent='center';const txt=document.createElement('div');txt.textContent=d.toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'2-digit'});txt.className='text-xs font-bold';wrap.appendChild(txt);daysRow.appendChild(wrap);if(idx<6){const gap=document.createElement('div');gap.style.width='8px';daysRow.appendChild(gap);} });const totalHd=document.createElement('div');totalHd.textContent='Total';totalHd.className='text-xs font-bold w-[60px] text-center';daysRow.appendChild(totalHd);} 
+function renderTable(trackers){let head='<thead class="bg-gray-200 dark:bg-gray-700"><tr><th class="p-2 text-left sticky-left">Project</th>'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<th class="p-2 text-center">${d}</th>`).join('')+'<th class="p-2 text-center">Total</th></tr></thead><tbody>';trackers.forEach(t=>{const total=t.hours.reduce((s,x)=>s+x,0);head+=`<tr class="border-t border-gray-300 dark:border-gray-600"><td class="p-2 font-bold sticky-left bg-gray-50 dark:bg-gray-800 whitespace-nowrap pr-4">${t.name}</td>`+t.hours.map(h=>`<td class="p-2 text-center">${toHM(h)}</td>`).join('')+`<td class="p-2 text-center font-semibold">${toHM(total)}</td></tr>`;});tableEl.innerHTML=head+'</tbody>';}
+function renderGrid(trackers){gridZone.innerHTML='';trackers.forEach(t=>{const row=document.createElement('div');row.className='flex items-center space-x-[1px]';const label=document.createElement('div');label.textContent=t.name;label.className='min-w-[200px] sticky-left bg-gray-50 dark:bg-gray-800 whitespace-nowrap pr-4';row.appendChild(label);t.hourBits.forEach((bit,i)=>{const cell=document.createElement('div');cell.className='hour-cell'+(bit?' hour-filled':'');cell.style.width=CELL_W+'px';row.appendChild(cell);if(i%24===23&&i<167){const gap=document.createElement('div');gap.style.width='8px';row.appendChild(gap);} });const totBox=document.createElement('div');totBox.className='w-[60px] text-center font-semibold';const totH=t.hours.reduce((s,x)=>s+x,0);totBox.textContent=toHM(totH);row.appendChild(totBox);gridZone.appendChild(row);});}
+async function load(){labelEl.textContent=`Week ${curW}, ${curY}`;const res=await fetch(`/api/stats?period=week&week=${curW}&year=${curY}&granular=hourbits`);const data=await res.json();if(!data.trackers?.length){tableEl.innerHTML='<tr><td class="p-4">No data</td></tr>';gridZone.innerHTML='';return;}buildDayHeader(data.labels);buildHourHeader();renderTable(data.trackers);renderGrid(data.trackers);}document.getElementById('prev').onclick=()=>{if(--curW<1){curW=52;--curY;}load();};document.getElementById('next').onclick=()=>{if(++curW>52){curW=1;++curY;}load();};document.getElementById('now').onclick=()=>{({w:curW,y:curY}=isoWeek(new Date()));load();};load();
+</script>
 </body>
 </html>
