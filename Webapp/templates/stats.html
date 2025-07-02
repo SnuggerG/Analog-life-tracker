@@ -3,100 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Statistics</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Weekly Tracker Overview</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 p-4 min-h-screen flex flex-col items-center">
-  <!-- Return Button -->
-  <div class="w-full max-w-lg mb-4">
+  <!-- Back Button -->
+  <div class="w-full max-w-4xl mb-4">
     <button onclick="window.location.href='/'" class="flex items-center text-gray-700 hover:text-gray-900">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
-      <span class="font-medium">Back</span>
+      <span class="font-medium">Home</span>
     </button>
   </div>
 
-  <h1 class="text-2xl font-semibold mb-6">Time Distribution</h1>
-  <div id="chart-container" class="w-full max-w-lg bg-white p-6 rounded-lg shadow">
-    <canvas id="statsChart"></canvas>
+  <!-- Week Navigation -->
+  <div class="flex items-center mb-6 space-x-4">
+    <button id="prev-week" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">&larr; Prev Week</button>
+    <h2 id="week-label" class="text-xl font-semibold"></h2>
+    <button id="next-week" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Next Week &rarr;</button>
   </div>
 
-  <!-- Filter Buttons -->
-  <div class="flex justify-center space-x-4 mt-4">
-    <button id="filter-day" class="px-4 py-2 bg-blue-500 text-white rounded">Day</button>
-    <button id="filter-week" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Week</button>
-    <button id="filter-month" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Month</button>
-    <button id="filter-all" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">All</button>
+  <!-- Weekly Data Table -->
+  <div class="overflow-x-auto w-full max-w-4xl bg-white rounded-lg shadow">
+    <table id="stats-table" class="min-w-full divide-y divide-gray-200">
+      <!-- Populated in JS -->
+    </table>
   </div>
 
   <script>
-    let currentPeriod = 'day';
-    let statsChart;
+    let currentWeek, currentYear;
 
-    async function loadStats(period) {
-      const res = await fetch('/api/stats?period=' + period);
+    // Compute ISO week/year
+    function getISOWeekYear(date) {
+      const target = new Date(date.valueOf());
+      const dayNr = (date.getDay() + 6) % 7;
+      target.setDate(target.getDate() - dayNr + 3);
+      const firstThursday = target.valueOf();
+      target.setMonth(0, 1);
+      if (target.getDay() !== 4) {
+        target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      }
+      const weekNumber = 1 + Math.ceil((firstThursday - target) / 604800000);
+      return { week: weekNumber, year: target.getFullYear() };
+    }
+
+    // Render table header and body
+    function renderTable(labels, trackers) {
+      const tbl = document.getElementById('stats-table');
+      // Build header
+      let html = '<thead class="bg-gray-50"><tr>'; 
+      html += '<th class="px-4 py-2 text-left">Tracker</th>';
+      labels.forEach(day => {
+        const d = new Date(day);
+        const lbl = d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+        html += `<th class="px-4 py-2 text-center">${lbl}</th>`;
+      });
+      html += '</tr></thead><tbody class="bg-white divide-y divide-gray-200">';
+      // Build rows
+      trackers.forEach(t => {
+        html += '<tr>';
+        html += `<td class="px-4 py-2 font-medium">${t.name}</td>`;
+        t.hours.forEach(h => {
+          html += `<td class="px-4 py-2 text-center">${h}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody>';
+      tbl.innerHTML = html;
+    }
+
+    // Load data for week/year
+    async function loadWeek(week, year) {
+      const res = await fetch(`/api/stats?period=week&week=${week}&year=${year}`);
       const data = await res.json();
-
-      // Clear previous message if any
-      document.querySelectorAll('.no-data-msg').forEach(el => el.remove());
-
-      if (!data.length) {
-        if (statsChart) statsChart.destroy();
-        const msg = document.createElement('p');
-        msg.textContent = 'No tracking data for ' + period + '.';
-        msg.className = 'text-gray-600 mt-4 no-data-msg';
-        document.body.appendChild(msg);
+      document.getElementById('week-label').textContent = `Week ${week}, ${year}`;
+      if (!data.trackers || data.trackers.length === 0) {
+        document.getElementById('stats-table').innerHTML = '<tr><td class="p-4">No data for this week.</td></tr>';
         return;
       }
-
-      const labels = data.map(d => d.name);
-      const values = data.map(d => d.hours);
-      const ctx = document.getElementById('statsChart').getContext('2d');
-
-      if (statsChart) statsChart.destroy();
-      statsChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: labels,
-          datasets: [{
-            data: values,
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { position: 'bottom' },
-            title: { display: true, text: 'Hours per Tracker (' + period.charAt(0).toUpperCase() + period.slice(1) + ')' }
-          }
-        }
-      });
+      renderTable(data.labels, data.trackers);
     }
 
-    function setPeriod(period) {
-      currentPeriod = period;
-      ['day','week','month','all'].forEach(p => {
-        const btn = document.getElementById('filter-' + p);
-        if (p === period) {
-          btn.classList.add('bg-blue-500', 'text-white');
-          btn.classList.remove('bg-gray-200');
-        } else {
-          btn.classList.remove('bg-blue-500', 'text-white');
-          btn.classList.add('bg-gray-200');
-        }
-      });
-      loadStats(period);
-    }
+    // Prev/Next handlers
+    document.getElementById('prev-week').addEventListener('click', () => {
+      currentWeek--;
+      if (currentWeek < 1) {
+        currentYear--; currentWeek = 52;
+      }
+      loadWeek(currentWeek, currentYear);
+    });
+    document.getElementById('next-week').addEventListener('click', () => {
+      currentWeek++;
+      if (currentWeek > 52) {
+        currentYear++; currentWeek = 1;
+      }
+      loadWeek(currentWeek, currentYear);
+    });
 
-    document.getElementById('filter-day').addEventListener('click', () => setPeriod('day'));
-    document.getElementById('filter-week').addEventListener('click', () => setPeriod('week'));
-    document.getElementById('filter-month').addEventListener('click', () => setPeriod('month'));
-    document.getElementById('filter-all').addEventListener('click', () => setPeriod('all'));
-
-    // Initial load
-    setPeriod(currentPeriod);
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const now = new Date();
+      ({ week: currentWeek, year: currentYear } = getISOWeekYear(now));
+      loadWeek(currentWeek, currentYear);
+    });
   </script>
 </body>
 </html>

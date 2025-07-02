@@ -24,7 +24,6 @@ def save_timers(timers):
         json.dump(timers, f, indent=2)
 
 def ensure_log_header():
-    # Create CSV with header if missing or empty
     if not os.path.exists(LOG_FILE) or os.path.getsize(LOG_FILE) == 0:
         with open(LOG_FILE, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -87,7 +86,6 @@ def toggle_timer(timer_id):
             return jsonify(t)
     return jsonify({'error': 'Timer not found'}), 404
 
-# --- Delete Endpoint ---
 @app.route('/api/timers/<timer_id>', methods=['DELETE'])
 def delete_timer(timer_id):
     timers = load_timers()
@@ -95,7 +93,6 @@ def delete_timer(timer_id):
     save_timers(new_list)
     return ('', 204)
 
-# --- CSV Upload Endpoint ---
 @app.route('/upload', methods=['POST'])
 def upload_csv():
     file = request.files.get('file')
@@ -104,13 +101,33 @@ def upload_csv():
     ensure_log_header()
     return ('', 204)
 
-# --- Statistics Endpoints ---
 @app.route('/api/stats', methods=['GET'])
 def api_stats():
     ensure_log_header()
+    period = request.args.get('period', 'day')
     stats = {}
+    week_data = {}
     starts = {}
-    today = datetime.date.today().isoformat()
+
+    # Determine week range
+    if period == 'week':
+        # Allow passing specific week/year
+        try:
+            week_num = int(request.args.get('week', 0))
+            year_num = int(request.args.get('year', 0))
+        except ValueError:
+            week_num = year_num = 0
+        if week_num and year_num:
+            # ISO: Monday is day 1, Sunday day 7
+            monday = datetime.date.fromisocalendar(year_num, week_num, 1)
+        else:
+            today = datetime.date.today()
+            monday = today - datetime.timedelta(days=today.weekday())
+        sunday = monday + datetime.timedelta(days=6)
+    else:
+        today = datetime.date.today()
+        monday = sunday = None
+
     with open(LOG_FILE, newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -118,21 +135,41 @@ def api_stats():
                 ts = dt.fromisoformat(row['timestamp'])
             except Exception:
                 continue
-            date = ts.date().isoformat()
-            tid = row['timer_id']
+            date = ts.date()
             name = row['timer_name']
             action = row['action']
             if action == 'start':
-                starts[tid] = ts
+                starts[row['timer_id']] = ts
             elif action == 'stop':
-                start = starts.pop(tid, None)
-                if start and date == today:
-                    elapsed = (ts - start).total_seconds()
+                start_ts = starts.pop(row['timer_id'], None)
+                if not start_ts:
+                    continue
+                elapsed = (ts - start_ts).total_seconds()
+
+                if period == 'day':
+                    if date == today:
+                        stats[name] = stats.get(name, 0) + elapsed
+                elif period == 'week':
+                    if monday <= date <= sunday:
+                        week_data.setdefault(name, {}).setdefault(date.isoformat(), 0)
+                        week_data[name][date.isoformat()] += elapsed
+                elif period == 'month':
+                    if date.year == today.year and date.month == today.month:
+                        stats[name] = stats.get(name, 0) + elapsed
+                else:  # all
                     stats[name] = stats.get(name, 0) + elapsed
+
+    if period == 'week':
+        labels = [(monday + datetime.timedelta(days=i)).isoformat() for i in range(7)]
+        trackers = []
+        for name, day_map in week_data.items():
+            hours = [round(day_map.get(day, 0) / 3600, 2) for day in labels]
+            trackers.append({'name': name, 'hours': hours})
+        return jsonify({'labels': labels, 'trackers': trackers})
+
     result = [{'name': k, 'hours': round(v/3600, 2)} for k, v in stats.items()]
     return jsonify(result)
 
-# --- Frontend & CSV Download ---
 @app.route('/stats', methods=['GET'])
 def stats_page():
     return render_template('stats.html')
@@ -152,4 +189,4 @@ def home():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=443, debug=True)
+    app.run(host='0.0.0.0', port=8000, debug=True)

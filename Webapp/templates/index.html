@@ -21,27 +21,33 @@
     <!-- Menu Buttons (above main +) -->
     <div id="dropdown" class="hidden flex flex-col items-center mb-2 space-y-2">
       <!-- Upload CSV -->
-      <button id="upload-csv" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+      <button id="upload-csv" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none" title="Upload CSV">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12v8m0-8l-4 4m4-4l4 4M12 4v8" />
         </svg>
       </button>
+      <!-- Download CSV -->
+      <button id="download-csv" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none" title="Download CSV">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 6h18M3 14h18M3 18h18" />
+        </svg>
+      </button>
       <!-- Add Tracker -->
-      <button id="add-tracker" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+      <button id="add-tracker" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none" title="Add Tracker">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
       </button>
       <!-- View Stats -->
-      <button id="view-stats" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+      <button id="view-stats" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none" title="View Statistics">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m4-6v6m-8-6v6" />
         </svg>
       </button>
       <!-- Delete Mode -->
-      <button id="delete-mode-btn" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none">
+      <button id="delete-mode-btn" class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center focus:outline-none" title="Toggle Delete Mode">
         <svg id="delete-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -77,6 +83,7 @@
     const addBtn = document.getElementById('add-btn');
     const dropdown = document.getElementById('dropdown');
     const uploadBtn = document.getElementById('upload-csv');
+    const downloadBtn = document.getElementById('download-csv');
     const csvInput = document.getElementById('csv-input');
     const addTrackerBtn = document.getElementById('add-tracker');
     const viewStatsBtn = document.getElementById('view-stats');
@@ -96,6 +103,11 @@
       const file = e.target.files[0]; if (!file) return;
       const form = new FormData(); form.append('file', file);
       await fetch('/upload', { method: 'POST', body: form }); loadTimers();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      dropdown.classList.add('hidden');
+      window.location.href = '/download';
     });
 
     addTrackerBtn.addEventListener('click', () => { dropdown.classList.add('hidden'); newName.value=''; modal.classList.remove('hidden'); newName.focus(); });
@@ -134,7 +146,7 @@
       });
     }
     function formatElapsed(sec) {const h=String(Math.floor(sec/3600)).padStart(2,'0'),m=String(Math.floor((sec%3600)/60)).padStart(2,'0'),s=String(sec%60).padStart(2,'0');return`${h}:${m}:${s}`;}
-    function startClock(id,startSec){const display=document.getElementById(`time-${id}`);let elapsed=startSec;intervals[id]=setInterval(()=>{elapsed++;display.textContent=formatElapsed(elapsed);},1000);}
+    function startClock(id,startSec){const display=document.getElementById(`time-${id}`);let elapsed=startSec;intervals[id]=setInterval(()=>{elapsed++;display.textContent=formatElapsed(elapsed);},1000);}    
     loadTimers();
   </script>
 </body>
