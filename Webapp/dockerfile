@@ -1,28 +1,22 @@
-## Use an official Python runtime as a parent image
-FROM python:3.10-slim
+# ── build stage ───────────────────────────────
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install --user -r requirements.txt
 
-## Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-## Set work directory
+# ── runtime image ─────────────────────────────
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 \
+    # ensure 'python -m pip install --user …' is on PATH
+    PATH=/root/.local/bin:$PATH
 WORKDIR /app
 
-## Install dependencies
-# Copy only requirements if you have one, otherwise install directly
-# Uncomment below if you add a requirements.txt
-# COPY requirements.txt ./
-# RUN pip install --no-cache-dir -r requirements.txt
-
-## Install Flask and Gunicorn
-RUN pip install --no-cache-dir Flask gunicorn
-
-## Copy project
+# copy code & installed deps
+COPY --from=build /root/.local /root/.local
 COPY . /app
 
-## Expose port 8000
+# expose Flask/Gunicorn port
 EXPOSE 8000
 
-## Run the app using Gunicorn
-# Assumes app instance is called "app" in app.py
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
+# gunicorn <module>:<app-object>
+CMD ["gunicorn", "--workers", "3", "--bind", "0.0.0.0:8000", "app:app"]
